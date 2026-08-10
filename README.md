@@ -74,6 +74,36 @@ Each named speaker must be defined in the `config.yaml` file. The default speake
 
 The speed of the audio can be adjusted in the config file. The default is 1.0, but you can set it to any value between 0.7 and 1.3. The speed is per speaker.
 
+## TTS model
+
+By default, `srt11` generates speech with the [`eleven_multilingual_v2`](https://elevenlabs.io/docs/models) ElevenLabs model. You can choose a different model with the optional `tts_model` field, either globally or per speaker:
+
+```yaml
+auth_key: "sk_your_auth_key"
+# Applies to every speaker unless overridden below
+tts_model: "eleven_multilingual_v2"
+default:
+    model: "model_id"
+    name: "Speaker name"
+    speed: 1.1
+models:
+    Joe:
+        model: "joe_model_id"
+        name: "Joe"
+        # Overrides the top-level tts_model just for Joe
+        tts_model: "eleven_flash_v2_5"
+```
+
+The model is resolved per line in this order: the speaker's own `tts_model`, then the top-level `tts_model`, then the built-in default (`eleven_multilingual_v2`). Omitting the field entirely keeps the previous behaviour, so existing configs are unaffected.
+
+> [!NOTE]
+> `tts_model` is the ElevenLabs **model** (the synthesis engine). The `model` field under each speaker is the ElevenLabs **voice ID** and is unrelated.
+
+> [!WARNING]
+> `srt11` relies on the per-speaker `speed` setting and on [request stitching](https://elevenlabs.io/docs/eleven-api/guides/how-to/text-to-speech/request-stitching) for timing and cross-line continuity. Neither is supported by `eleven_v3`, so that model is not recommended here. `eleven_multilingual_v2` and the `eleven_flash_v2_5` / `eleven_flash_v2` models support both and are safe choices.
+
+The selected model is included in the generated file's cache key, so switching models re-generates audio instead of reusing files produced by a different model. The run log also prints the model used for each line, e.g. `Speaking (as Joe via eleven_flash_v2_5)`.
+
 ## Merge lines
 
 If you have multiple lines in a row spoken by the same speaker, you can merge them into line.
