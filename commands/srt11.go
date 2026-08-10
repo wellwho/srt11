@@ -23,26 +23,43 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type SpeakerConfig struct {
+	Model    string  `yaml:"model"` // ElevenLabs voice ID
+	Name     string  `yaml:"name"`
+	Speed    float32 `yaml:"speed"`
+	TTSModel string  `yaml:"tts_model"` // optional: ElevenLabs model ID override for this speaker
+}
+
 type Config struct {
-	AuthKey string `yaml:"auth_key"`
-	Default struct {
-		Model string  `yaml:"model"`
-		Name  string  `yaml:"name"`
-		Speed float32 `yaml:"speed"`
-	} `yaml:"default"`
-	Models map[string]struct {
-		Model string  `yaml:"model"`
-		Name  string  `yaml:"name"`
-		Speed float32 `yaml:"speed"`
-	} `yaml:"models"`
-	MergeLinesThresholdMs int `yaml:"merge_lines_threshold_ms"` // optional
+	AuthKey               string                   `yaml:"auth_key"`
+	TTSModel              string                   `yaml:"tts_model"` // optional: default ElevenLabs model ID for all speakers
+	Default               SpeakerConfig            `yaml:"default"`
+	Models                map[string]SpeakerConfig `yaml:"models"`
+	MergeLinesThresholdMs int                      `yaml:"merge_lines_threshold_ms"` // optional
+}
+
+// defaultTTSModel is used when no tts_model is set anywhere in the config.
+// Kept as the historical default so existing configs behave identically.
+const defaultTTSModel = "eleven_multilingual_v2"
+
+// resolveTTSModel picks the ElevenLabs model ID for a speaker, in order of
+// precedence: per-speaker tts_model, top-level tts_model, built-in default.
+func resolveTTSModel(speaker SpeakerConfig, cfg *Config) string {
+	if speaker.TTSModel != "" {
+		return speaker.TTSModel
+	}
+	if cfg.TTSModel != "" {
+		return cfg.TTSModel
+	}
+	return defaultTTSModel
 }
 
 type Model struct {
-	model  string
-	name   string
-	offset int
-	speed  float32
+	model    string
+	name     string
+	offset   int
+	speed    float32
+	ttsModel string
 }
 
 type Path struct {
@@ -232,7 +249,7 @@ func generatePathTemplate(root string, item *astisub.Item, model Model) Path {
 		dialog = dialog[:50]
 	}
 
-	checksum := md5.Sum([]byte(model.model + fmt.Sprintf("%f", model.speed) + item.String()))
+	checksum := md5.Sum([]byte(model.model + model.ttsModel + fmt.Sprintf("%f", model.speed) + item.String()))
 	template := filepath.Join(root, fmt.Sprintf("%X-%s-%s.%%s.mp3", checksum[:4], model.name, dialog))
 
 	glob := fmt.Sprintf(template, "*")
@@ -365,9 +382,9 @@ func parseSubtitleFile(config *Config, path string, mergeLinesThresholdMs int) [
 		var model Model
 		if modelName != "" {
 			modelConfig := config.Models[modelName]
-			model = Model{name: modelConfig.Name, model: modelConfig.Model, offset: modelChannels[modelName], speed: modelConfig.Speed}
+			model = Model{name: modelConfig.Name, model: modelConfig.Model, offset: modelChannels[modelName], speed: modelConfig.Speed, ttsModel: resolveTTSModel(modelConfig, config)}
 		} else {
-			model = Model{name: config.Default.Name, model: config.Default.Model, offset: 0, speed: config.Default.Speed}
+			model = Model{name: config.Default.Name, model: config.Default.Model, offset: 0, speed: config.Default.Speed, ttsModel: resolveTTSModel(config.Default, config)}
 		}
 
 		item := Item{
@@ -422,14 +439,14 @@ func generateMissingVoiceLines(client *elevenlabs.Client, items []Item) []AudioF
 			nextRequestIds = append(nextRequestIds, items[i].Path.Id)
 		}
 
-		log.Printf("Speaking (as %s) \"%s\"\n", item.Model.name, item.Sub.String())
+		log.Printf("Speaking (as %s via %s) \"%s\"\n", item.Model.name, item.Model.ttsModel, item.Sub.String())
 		ttsReq := elevenlabs.TextToSpeechRequest{
 			VoiceSettings: &elevenlabs.VoiceSettings{
 				SpeakerBoost: true,
 				Speed:        item.Model.speed,
 			},
 			Text:               item.Sub.String(),
-			ModelID:            "eleven_multilingual_v2",
+			ModelID:            item.Model.ttsModel,
 			PreviousRequestIds: previousRequestIds,
 			NextRequestIds:     nextRequestIds,
 			NextText:           nextText,

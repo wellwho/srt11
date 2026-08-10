@@ -1,4 +1,8 @@
 auth_key: "sk_your_auth_key"
+# Optional: ElevenLabs TTS model ID used for all speakers.
+# Defaults to "eleven_multilingual_v2" if omitted.
+# See https://github.com/dkarlovi/srt11?tab=readme-ov-file#tts-model
+tts_model: "eleven_multilingual_v2"
 default:
     model: "model_id"
     name: "Speaker name"
@@ -11,4 +15,5 @@ models:
     Joe:
         model: "joe_model_id"
         name: "Joe"
-
+        # Optional: per-speaker TTS model override (falls back to top-level tts_model)
+        # tts_model: "eleven_flash_v2_5"
