@@ -291,11 +291,7 @@ func parseSubtitleFile(config *Config, path string, mergeLinesThresholdMs int) [
 		} else if len(cur.Comments) > 0 {
 			curSpeaker = cur.Comments[0]
 		} else {
-			re := regexp.MustCompile(`\[(.*?)\]\s*(.+)`)
-			match := re.FindStringSubmatch(cur.String())
-			if len(match) > 1 {
-				curSpeaker = match[1]
-			}
+			curSpeaker, _, _ = resolveSpeaker(cur.String())
 		}
 		// Prepare to merge into a single line
 		mergedText := cur.String()
@@ -321,11 +317,7 @@ func parseSubtitleFile(config *Config, path string, mergeLinesThresholdMs int) [
 				} else if len(next.Comments) > 0 {
 					nextSpeaker = next.Comments[0]
 				} else {
-					re := regexp.MustCompile(`\[(.*?)\]\s*(.+)`)
-					match := re.FindStringSubmatch(next.String())
-					if len(match) > 1 {
-						nextSpeaker = match[1]
-					}
+					nextSpeaker, _, _ = resolveSpeaker(next.String())
 				}
 				gap := next.StartAt - mergedEnd
 				if curSpeaker == nextSpeaker && gap.Milliseconds() >= 0 && gap.Milliseconds() <= int64(mergeLinesThresholdMs) {
@@ -370,18 +362,17 @@ func parseSubtitleFile(config *Config, path string, mergeLinesThresholdMs int) [
 			modelName = sub.Lines[0].VoiceName
 		} else if len(sub.Comments) > 0 {
 			modelName = sub.Comments[0]
-		} else {
-			re := regexp.MustCompile(`\[(.*?)\]\s*(.+)`)
-			match := re.FindStringSubmatch(sub.String())
-			if len(match) > 1 {
-				modelName = match[1]
-				sub.Lines[0].Items[0].Text = match[2]
-			}
+		} else if name, dialogue, tagged := resolveSpeaker(sub.String()); tagged {
+			modelName = name
+			sub.Lines[0].Items[0].Text = dialogue
 		}
 
 		var model Model
 		if modelName != "" {
-			modelConfig := config.Models[modelName]
+			modelConfig, err := lookupSpeakerModel(modelName, config)
+			if err != nil {
+				log.Fatalf("Error in subtitle #%d: %v", i+1, err)
+			}
 			model = Model{name: modelConfig.Name, model: modelConfig.Model, offset: modelChannels[modelName], speed: modelConfig.Speed, ttsModel: resolveTTSModel(modelConfig, config)}
 		} else {
 			model = Model{name: config.Default.Name, model: config.Default.Model, offset: 0, speed: config.Default.Speed, ttsModel: resolveTTSModel(config.Default, config)}
