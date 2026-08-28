@@ -147,7 +147,7 @@ func Run(c *console.Context) error {
 		}
 
 		fmt.Fprintf(c.App.Writer,
-			"#%03d\n<info>%s</>\nSpeaker:  <comment>%s</>, speed: %.2f\nSubtitle: <fg=yellow>%s</> --> <fg=yellow>%s</> (duration <fg=yellow>%s</>)\nAudio:    <fg=yellow>%s</> --> <fg=yellow>%s</> (duration <fg=yellow>%s</>)%s\nPath:     <fg=gray>%s</>\n",
+			"#%03d\n<info>%s</>\nSpeaker:  <comment>%s</>, speed: %.2f\nSubtitle: <fg=yellow>%s</> --> <fg=yellow>%s</> (duration <fg=yellow>%s</>)\nAudio:    <fg=yellow>%s</> --> <fg=yellow>%s</> (duration <fg=yellow>%s</>)%s\nPath:     <fg=default>%s</>\n",
 			file.Item.Sub.Index+1,
 			file.Item.Sub.String(),
 			file.Item.Model.name,
