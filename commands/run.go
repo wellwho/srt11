@@ -131,19 +131,19 @@ func Run(c *console.Context) error {
 	client := elevenlabs.NewClient(context.Background(), config.AuthKey, 30*time.Second)
 	audioFiles := generateMissingVoiceLines(client, items)
 
+	overlapsByFirst := make(map[int]cueOverlap)
+	for _, ov := range findOverlaps(audioFiles, 0) {
+		overlapsByFirst[ov.First] = ov
+	}
+
 	overlaps := make([]AudioFile, 0)
 	for i, file := range audioFiles {
 		fileEndAt := file.Offset + file.Duration
-		var overlap bool
 		var overlapText string
-		if i < len(audioFiles)-1 {
-			nextFile := audioFiles[i+1]
-			overlap = fileEndAt > nextFile.Offset && file.Item.Model.model == nextFile.Item.Model.model
-			file.Overlap = fileEndAt - nextFile.Offset
-			if overlap {
-				overlapText = fmt.Sprintf(" (<fg=yellow>OVERLAP %s</>)", file.Overlap.Round(time.Millisecond))
-				overlaps = append(overlaps, file)
-			}
+		if ov, ok := overlapsByFirst[i]; ok {
+			file.Overlap = ov.Duration
+			overlapText = fmt.Sprintf(" (<fg=yellow>OVERLAP %s</>)", file.Overlap.Round(time.Millisecond))
+			overlaps = append(overlaps, file)
 		}
 
 		fmt.Fprintf(c.App.Writer,
